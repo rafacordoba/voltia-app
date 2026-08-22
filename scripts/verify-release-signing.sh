@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
-# Verifica que un APK de release está firmado con la keystore real,
-# no con la debug key (posible desde que build.gradle.kts hace fallback
-# a la debug key cuando falta keystore.properties, para que el build
-# de verificacion de fdroiddata en GitLab encuentre app-release.apk).
+# Verifica que un APK de release está firmado con la keystore real, no con la
+# debug key, antes de publicar una release (Google Play u otro destino).
 #
 # Uso: scripts/verify-release-signing.sh ruta/al/OpenTarifa-X.Y.Z.apk
 set -euo pipefail
