@@ -44,9 +44,15 @@ fun TomorrowScreen(modifier: Modifier = Modifier, viewModel: TomorrowViewModel =
 
     // Recarga en cada entrada a la pestaña (no solo en la creación del ViewModel, que sobrevive
     // a la navegación): con LaunchedEffect(Unit) esto se dispara de nuevo cada vez que este
-    // composable vuelve a entrar en composición, tanto la primera vez como en cualquier reentrada.
+    // composable vuelve a entrar en composición, tanto la primera vez como en cualquier
+    // reentrada. Solo si NO hay ya precios cargados (Success): los precios de un día, una vez
+    // publicados, no cambian, así que reentrar en la pestaña con Success no debe disparar una
+    // llamada de red ni el indicador de carga — para eso está el pull-to-refresh manual, que no
+    // pasa por aquí (ver onRefresh en PullToRefreshBox) y sigue funcionando siempre.
     LaunchedEffect(Unit) {
-        viewModel.loadPrices()
+        if (uiState !is TomorrowUiState.Success) {
+            viewModel.loadPrices()
+        }
     }
 
     PullToRefreshBox(
