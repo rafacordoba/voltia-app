@@ -8,7 +8,7 @@ plugins {
 }
 
 // keystore.properties no se versiona (ver .gitignore); si no existe (p. ej. en otra
-// máquina o en CI), el build de release simplemente queda sin firmar en vez de fallar.
+// máquina), el build de release falla explícitamente en vez de firmar con la debug key.
 val keystorePropertiesFile = rootProject.file("keystore.properties")
 val keystoreProperties = Properties()
 val hasKeystoreProperties = keystorePropertiesFile.exists()
@@ -48,11 +48,10 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            if (hasKeystoreProperties) {
-                signingConfig = signingConfigs.getByName("release")
-            } else {
-                signingConfig = signingConfigs.getByName("debug")
+            if (!hasKeystoreProperties) {
+                error("Falta keystore.properties: no se puede firmar el build de release.")
             }
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 
