@@ -145,17 +145,36 @@ fun NotificationsScreen(modifier: Modifier = Modifier) {
                 items(alerts, key = { it.id }) { alert ->
                     AlertRow(
                         alert = alert,
-                        onToggleEnabled = {
+                        onToggleEnabled = { checked ->
                             scope.launch {
-                                AlarmScheduler.cancel(context, alert.id)
-                                // Tipo A (ONCE) puntual, ya no aporta nada al desactivarse: se
-                                // elimina en vez de dejarla "Inactiva" para siempre. Tipo B
-                                // (RECURRING) es una regla persistente, así que sigue solo
-                                // desactivándose.
-                                if (alert.scope == AlertScope.ONCE.name) {
-                                    alertRepository.deleteAlert(alert)
+                                if (checked) {
+                                    // Solo Tipo B llega aquí: Tipo A (ONCE) se elimina al
+                                    // desactivarse (rama de abajo) y ya no vuelve a aparecer en
+                                    // esta lista para poder reactivarse.
+                                    alertRepository.enable(alert)
+                                    // Mismo patrón que al crear una alerta nueva (ver onSave más
+                                    // abajo): si hoy está entre sus días activos, reprograma ya
+                                    // con los precios de hoy en vez de esperar al próximo ciclo
+                                    // del worker. scheduleTodaysRecurringAlerts respeta el guard
+                                    // de hora ya pasada, así que no hace falta comprobarlo aquí.
+                                    val today = LocalDate.now(ZoneId.of("Europe/Madrid"))
+                                    val activeToday = alert.activeDays.isNullOrBlank() ||
+                                        alert.activeDays.split(",").any { runCatching { DayOfWeek.valueOf(it) }.getOrNull() == today.dayOfWeek }
+                                    if (activeToday) {
+                                        val todayPrices = runCatching { pvpcRepository.getTodayPrices() }.getOrDefault(emptyList())
+                                        scheduleTodaysRecurringAlerts(context, alertRepository, today, todayPrices)
+                                    }
                                 } else {
-                                    alertRepository.disable(alert)
+                                    AlarmScheduler.cancel(context, alert.id)
+                                    // Tipo A (ONCE) puntual, ya no aporta nada al desactivarse: se
+                                    // elimina en vez de dejarla "Inactiva" para siempre. Tipo B
+                                    // (RECURRING) es una regla persistente, así que sigue solo
+                                    // desactivándose.
+                                    if (alert.scope == AlertScope.ONCE.name) {
+                                        alertRepository.deleteAlert(alert)
+                                    } else {
+                                        alertRepository.disable(alert)
+                                    }
                                 }
                             }
                         },
@@ -191,7 +210,7 @@ fun NotificationsScreen(modifier: Modifier = Modifier) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AlertRow(alert: AlertEntity, onToggleEnabled: () -> Unit, onDelete: () -> Unit) {
+private fun AlertRow(alert: AlertEntity, onToggleEnabled: (Boolean) -> Unit, onDelete: () -> Unit) {
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
             if (value == SwipeToDismissBoxValue.StartToEnd || value == SwipeToDismissBoxValue.EndToStart) {
@@ -240,14 +259,13 @@ private fun AlertRow(alert: AlertEntity, onToggleEnabled: () -> Unit, onDelete: 
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                // Tipo A se elimina al desactivarse (ver onToggleEnabled), así que esta fila
-                // "Inactiva" con el switch bloqueado solo puede corresponder a una Tipo B:
-                // reactivarla requeriría recalcular la hora más barata/cara del día, que esta
-                // pantalla no tiene disponible.
+                // Tipo A se elimina al desactivarse (ver onToggleEnabled), así que una fila
+                // "Inactiva" con el switch en off solo puede corresponder a una Tipo B — siempre
+                // interactivo: reactivarla reprograma la alarma vía scheduleTodaysRecurringAlerts
+                // (ver onToggleEnabled), que ya sabe recalcular la hora más barata/cara del día.
                 Switch(
                     checked = alert.isEnabled,
-                    enabled = alert.isEnabled,
-                    onCheckedChange = { onToggleEnabled() }
+                    onCheckedChange = onToggleEnabled
                 )
             }
         }

@@ -78,4 +78,11 @@ class AlertRepository(private val alertDao: AlertDao) {
 
     /** Desactiva una alerta Tipo B (recurrente) desde la pantalla de gestión, sin borrarla. */
     suspend fun disable(alert: AlertEntity) = alertDao.update(alert.copy(isEnabled = false))
+
+    /**
+     * Reactiva una alerta Tipo B previamente desactivada. Por sí sola no reprograma su alarma —
+     * quien llama debe disparar [com.opentarifa.app.notifications.scheduleTodaysRecurringAlerts]
+     * a continuación si hoy está entre sus días activos (mismo patrón que al crear una alerta).
+     */
+    suspend fun enable(alert: AlertEntity) = alertDao.update(alert.copy(isEnabled = true))
 }
